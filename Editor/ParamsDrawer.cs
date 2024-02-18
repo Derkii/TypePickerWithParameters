@@ -2,16 +2,33 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using TypeRef.Runtime;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using TypeDropdownWithParameters.Runtime;
 using UnityEditor;
 using UnityEngine;
 
-namespace TypeRef.Editor
+namespace TypeDropdownWithParameters.Editor
 {
     [CustomPropertyDrawer(typeof(ParamsAttribute), true)]
     public class ParamsDrawer : PropertyDrawer
     {
-        private static readonly Type[] _allowedTypes = { typeof(float), typeof(string), typeof(bool), typeof(int) };
+        private static readonly Dictionary<Type, Func<Rect, string, object, object>> _allowedTypes = new()
+        {
+            {
+                typeof(float), (rect, str, ob) => { return EditorGUI.FloatField(rect, str, (float)ob); }
+            },
+            {
+                typeof(int), (rect, str, ob) => { return EditorGUI.IntField(rect, str, (int)ob); }
+            },
+            {
+                typeof(bool), (rect, str, ob) => { return EditorGUI.Toggle(rect, str, (bool)ob); }
+            },
+            {
+                typeof(string), (rect, str, ob) => { return EditorGUI.TextField(rect, str, (string)ob); }
+            }
+        };
+
         private Type _currentType;
         private object _instance;
         private bool _showing;
@@ -29,14 +46,19 @@ namespace TypeRef.Editor
             _instance = Activator.CreateInstance(_currentType);
             if (json.Length > 1)
             {
-                IDictionary<string, JToken> Jsondata = JObject.Parse(json);
-                foreach (var element in Jsondata)
+                IDictionary<string, JToken> parsedJobject = JObject.Parse(json);
+                foreach (var element in parsedJobject)
                 {
                     var field = _instance.GetType().GetField(element.Key);
                     if (field != null && field.GetCustomAttributes().Select(t => t.GetType())
-                            .Contains(typeof(OutsideInitializedAttribute)) &&
-                        _allowedTypes.Contains(field.FieldType))
-                        field.SetValue(_instance, Convert.ChangeType(element.Value, field.FieldType));
+                            .Contains(typeof(OutsideInitializedAttribute)))
+                    {
+                        if (
+                            _allowedTypes.ContainsKey(field.FieldType))
+                            field.SetValue(_instance, Convert.ChangeType(element.Value, field.FieldType));
+                        else
+                            Debug.LogException(new TypeIsNotAllowedException(field.FieldType));
+                    }
                 }
             }
         }
@@ -69,14 +91,15 @@ namespace TypeRef.Editor
             for (var i = 0; i < fields.Length; i++)
             {
                 var field = fields[i];
-                if (field.FieldType == typeof(float))
-                {
-                    if (field.GetCustomAttributes()
-                            .FirstOrDefault(t => t.GetType() == typeof(OutsideInitializedAttribute)) == null) continue;
-                    field.SetValue(_instance,
-                        EditorGUI.FloatField(position, field.Name, (float)field.GetValue(_instance)));
-                    position.position += new Vector2(0f, EditorGUIUtility.singleLineHeight);
-                }
+                if (field.GetCustomAttributes()
+                        .FirstOrDefault(t => t.GetType() == typeof(OutsideInitializedAttribute)) == null) continue;
+                if (!_allowedTypes.ContainsKey(field.FieldType))
+                    Debug.LogException(new TypeIsNotAllowedException(field.FieldType));
+
+                field.SetValue(_instance,
+                    _allowedTypes[field.FieldType].Invoke(position, field.Name, field.GetValue(_instance)));
+
+                position.position += new Vector2(0f, EditorGUIUtility.singleLineHeight);
             }
 
             position.height = 1;
@@ -90,12 +113,20 @@ namespace TypeRef.Editor
                 .FindPropertyRelative("qualifiedName").stringValue);
             if (_currentType != null) _instance = Activator.CreateInstance(_currentType);
             if (_currentType == null || _instance == null) return 0f;
-            var count = _instance.GetType().GetFields().Count(t => _allowedTypes.Contains(t.FieldType) &&
+            var count = _instance.GetType().GetFields().Count(t => _allowedTypes.ContainsKey(t.FieldType) &&
                                                                    t.GetCustomAttributes().Select(t => t.GetType())
                                                                        .Contains(
                                                                            typeof(OutsideInitializedAttribute)));
             return count *
                    EditorGUIUtility.singleLineHeight;
+        }
+
+        private class TypeIsNotAllowedException : Exception
+        {
+            public TypeIsNotAllowedException(Type type) : base(
+                $"Field is of type {type} and this type is not allowed. Add type to dictionary or change the field's type")
+            {
+            }
         }
     }
 }

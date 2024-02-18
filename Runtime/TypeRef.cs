@@ -1,17 +1,18 @@
 ﻿using System;
 using UnityEngine;
 
-namespace TypeRef.Runtime
+namespace TypeDropdownWithParameters.Runtime
 {
     [Serializable]
     public class TypeRef<T> : ISerializationCallbackReceiver
     {
+        [SerializeField] private string qualifiedName;
+
 #if UNITY_EDITOR
         // HACK: I wasn't able to find the base type from the SerializedProperty,
         // so I'm smuggling it in via an extra string stored only in-editor.
         [SerializeField] private string baseTypeName;
 #endif
-        [SerializeField] private string qualifiedName;
 
         private Type storedType;
 
@@ -23,12 +24,6 @@ namespace TypeRef.Runtime
         public TypeRef()
         {
             storedType = typeof(T);
-        }
-
-        public override string ToString()
-        {
-            if (storedType == null) return string.Empty;
-            return storedType.Name;
         }
 
         public void OnBeforeSerialize()
@@ -49,6 +44,12 @@ namespace TypeRef.Runtime
             }
 
             storedType = Type.GetType(qualifiedName);
+        }
+
+        public override string ToString()
+        {
+            if (storedType == null) return string.Empty;
+            return storedType.Name;
         }
 
         public static implicit operator Type(TypeRef<T> t)
