@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Linq;
-using TypeDropdownWithParameters.Runtime;
+using TypePickerWithParameters.Runtime;
 using UnityEditor;
 using UnityEngine;
 
-namespace TypeDropdownWithParameters.Editor
+namespace TypePickerWithParameters.Editor
 {
     [CustomPropertyDrawer(typeof(TypeRef<>), true)]
     public class TypeRefDrawer : PropertyDrawer

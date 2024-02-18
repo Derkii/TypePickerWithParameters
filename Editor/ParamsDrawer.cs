@@ -4,11 +4,11 @@ using System.Linq;
 using System.Reflection;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using TypeDropdownWithParameters.Runtime;
+using TypePickerWithParameters.Runtime;
 using UnityEditor;
 using UnityEngine;
 
-namespace TypeDropdownWithParameters.Editor
+namespace TypePickerWithParameters.Editor
 {
     [CustomPropertyDrawer(typeof(ParamsAttribute), true)]
     public class ParamsDrawer : PropertyDrawer

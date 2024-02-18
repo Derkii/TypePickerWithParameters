@@ -1,6 +1,6 @@
 using System;
 
-namespace TypeDropdownWithParameters.Runtime
+namespace TypePickerWithParameters.Runtime
 {
     [AttributeUsage(AttributeTargets.Field)]
     public class OutsideInitializedAttribute : Attribute

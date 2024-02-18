@@ -1,7 +1,7 @@
 ﻿using System;
 using UnityEngine;
 
-namespace TypeDropdownWithParameters.Runtime
+namespace TypePickerWithParameters.Runtime
 {
     [Serializable]
     public class TypeRef<T> : ISerializationCallbackReceiver

@@ -2,7 +2,7 @@ using System;
 using Newtonsoft.Json;
 using UnityEngine;
 
-namespace TypeDropdownWithParameters.Runtime
+namespace TypePickerWithParameters.Runtime
 {
     [Serializable]
     public class TypePopupWithTuning<T>
