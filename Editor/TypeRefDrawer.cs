@@ -51,7 +51,7 @@ namespace TypePickerWithParameters.Editor
                 .Where(t =>
                     t != baseType &&
                     baseType.IsAssignableFrom(t)
-                ).ToArray();
+                ).Where(t => !t.IsInterface).ToArray();
         }
 
         private void Initialize(SerializedProperty property, SerializedProperty stored)

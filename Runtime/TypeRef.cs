@@ -9,11 +9,8 @@ namespace TypePickerWithParameters.Runtime
         [SerializeField] private string qualifiedName;
 
 #if UNITY_EDITOR
-        // HACK: I wasn't able to find the base type from the SerializedProperty,
-        // so I'm smuggling it in via an extra string stored only in-editor.
         [SerializeField] private string baseTypeName;
 #endif
-
         private Type storedType;
 
         public TypeRef(Type typeToStore)

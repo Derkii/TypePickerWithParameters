@@ -5,7 +5,7 @@ using UnityEngine;
 namespace TypePickerWithParameters.Runtime
 {
     [Serializable]
-    public class TypePopupWithTuning<T>
+    public class TypePickerWithParameters<T>
     {
         public TypeRef<T> TypeRef;
         [Params] public string Params;

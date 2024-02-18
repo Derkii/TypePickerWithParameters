@@ -49,7 +49,8 @@ namespace TypePickerWithParameters.Editor
                 IDictionary<string, JToken> parsedJobject = JObject.Parse(json);
                 foreach (var element in parsedJobject)
                 {
-                    var field = _instance.GetType().GetField(element.Key);
+                    var field = _instance.GetType().GetField(element.Key,
+                        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
                     if (field != null && field.GetCustomAttributes().Select(t => t.GetType())
                             .Contains(typeof(OutsideInitializedAttribute)))
                     {
@@ -69,7 +70,6 @@ namespace TypePickerWithParameters.Editor
             _currentType = Type.GetType(property.FindParentProperty().FindPropertyRelative("TypeRef")
                 .FindPropertyRelative("qualifiedName").stringValue);
             if (_currentType == null) return;
-
             position.height = EditorGUIUtility.singleLineHeight;
             Initialize(property);
 
@@ -87,36 +87,48 @@ namespace TypePickerWithParameters.Editor
             }
             position.position += new Vector2(0f, EditorGUIUtility.singleLineHeight);*/
             EditorGUI.BeginChangeCheck();
-            var fields = _instance.GetType().GetFields();
+            var fields = _instance.GetType()
+                .GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
             for (var i = 0; i < fields.Length; i++)
             {
                 var field = fields[i];
-                if (field.GetCustomAttributes()
-                        .FirstOrDefault(t => t.GetType() == typeof(OutsideInitializedAttribute)) == null) continue;
+                var attribute = field.GetCustomAttributes()
+                    .FirstOrDefault(t => t.GetType() == typeof(OutsideInitializedAttribute));
+                if (attribute == null) continue;
                 if (!_allowedTypes.ContainsKey(field.FieldType))
-                    Debug.LogException(new TypeIsNotAllowedException(field.FieldType));
+                    Debug.LogError(new TypeIsNotAllowedException(field.FieldType).Message);
 
+                var outsideInitializedAttribute = (OutsideInitializedAttribute)attribute;
+                var name = field.Name;
+                name = name.Replace("_", "");
+                var charArray = name.ToCharArray();
+                charArray[0] = charArray[0].ToString().ToUpper().ToCharArray()[0];
+                name = new string(charArray);
                 field.SetValue(_instance,
-                    _allowedTypes[field.FieldType].Invoke(position, field.Name, field.GetValue(_instance)));
-
+                    _allowedTypes[field.FieldType].Invoke(position,
+                        outsideInitializedAttribute.InitializeAs == ""
+                            ? name
+                            : outsideInitializedAttribute.InitializeAs, field.GetValue(_instance)));
                 position.position += new Vector2(0f, EditorGUIUtility.singleLineHeight);
             }
 
             position.height = 1;
             EditorGUI.DrawRect(position, new Color(0.5f, 0.5f, 0.5f, 1));
-            if (EditorGUI.EndChangeCheck()) property.stringValue = JsonConvert.SerializeObject(_instance);
+            if (EditorGUI.EndChangeCheck())
+            {
+                Debug.Log(property.propertyPath + " " + JsonConvert.SerializeObject(_instance, Formatting.Indented));
+                property.stringValue = JsonConvert.SerializeObject(_instance, Formatting.Indented);
+            }
         }
 
         public override float GetPropertyHeight(SerializedProperty property, GUIContent label)
         {
             _currentType = Type.GetType(property.FindParentProperty().FindPropertyRelative("TypeRef")
                 .FindPropertyRelative("qualifiedName").stringValue);
-            if (_currentType != null) _instance = Activator.CreateInstance(_currentType);
-            if (_currentType == null || _instance == null) return 0f;
-            var count = _instance.GetType().GetFields().Count(t => _allowedTypes.ContainsKey(t.FieldType) &&
-                                                                   t.GetCustomAttributes().Select(t => t.GetType())
-                                                                       .Contains(
-                                                                           typeof(OutsideInitializedAttribute)));
+            if (_currentType == null) return 0f;
+            var count = _currentType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                .Count(t => _allowedTypes.ContainsKey(t.FieldType) &&
+                            t.GetCustomAttributes(typeof(OutsideInitializedAttribute)).Any());
             return count *
                    EditorGUIUtility.singleLineHeight;
         }
