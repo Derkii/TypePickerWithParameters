@@ -1,9 +1,12 @@
-using System;
+ using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization.Metadata;
 using TypePickerWithParameters.Runtime;
 using UnityEditor;
 using UnityEngine;
@@ -46,17 +49,34 @@ namespace TypePickerWithParameters.Editor
             _instance = Activator.CreateInstance(_currentType);
             if (json.Length > 1)
             {
-                IDictionary<string, JToken> parsedJobject = JObject.Parse(json);
-                foreach (var element in parsedJobject)
+                using var ms = new MemoryStream(Encoding.UTF8.GetBytes(json));
+                var options = new JsonSerializerOptions()
                 {
+                    TypeInfoResolver = new DefaultJsonTypeInfoResolver()
+                    {
+                        Modifiers = { TypePickerJsonExtensions.AddPrivateFieldsWithAttributeModifier }
+                    }
+                };
+                var parsedObject = JsonObject.Parse(json).AsObject();
+                foreach (var element in parsedObject)
+                {
+                    object value;
+                    if ((element.Value is JsonValue) == false || element.Value.GetValueKind() == JsonValueKind.Object) continue;
+                    value = element.Value.GetValueKind() switch
+                    {
+                        JsonValueKind.String => element.Value.GetValue<string>(),
+                        JsonValueKind.Number => element.Value.GetValue<float>(),
+                        JsonValueKind.True => true,
+                        JsonValueKind.False => false,
+                        _ => throw new ArgumentOutOfRangeException()
+                    };
                     var field = _instance.GetType().GetField(element.Key,
                         BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                    if (field != null && field.GetCustomAttributes().Select(t => t.GetType())
-                            .Contains(typeof(OutsideInitializedAttribute)))
+                    if (field != null && field.IsDefined(typeof(OutsideInitializedAttribute)))
                     {
                         if (
                             _allowedTypes.ContainsKey(field.FieldType))
-                            field.SetValue(_instance, Convert.ChangeType(element.Value, field.FieldType));
+                            field.SetValue(_instance, value);
                         else
                             Debug.LogException(new TypeIsNotAllowedException(field.FieldType));
                     }
@@ -92,11 +112,10 @@ namespace TypePickerWithParameters.Editor
             for (var i = 0; i < fields.Length; i++)
             {
                 var field = fields[i];
-                var attribute = field.GetCustomAttributes()
-                    .FirstOrDefault(t => t.GetType() == typeof(OutsideInitializedAttribute));
+                var attribute = field.GetCustomAttribute(typeof(OutsideInitializedAttribute));
                 if (attribute == null) continue;
                 if (!_allowedTypes.ContainsKey(field.FieldType))
-                    Debug.LogError(new TypeIsNotAllowedException(field.FieldType).Message);
+                    Debug.LogException(new TypeIsNotAllowedException(field.FieldType));
 
                 var outsideInitializedAttribute = (OutsideInitializedAttribute)attribute;
                 var name = field.Name;
@@ -116,8 +135,15 @@ namespace TypePickerWithParameters.Editor
             EditorGUI.DrawRect(position, new Color(0.5f, 0.5f, 0.5f, 1));
             if (EditorGUI.EndChangeCheck())
             {
-                Debug.Log(property.propertyPath + " " + JsonConvert.SerializeObject(_instance, Formatting.Indented));
-                property.stringValue = JsonConvert.SerializeObject(_instance, Formatting.Indented);
+                using var ms = new MemoryStream();
+                JsonSerializer.Serialize(ms, _instance, new JsonSerializerOptions()
+                {
+                    TypeInfoResolver = new DefaultJsonTypeInfoResolver()
+                    {
+                        Modifiers = { TypePickerJsonExtensions.AddPrivateFieldsWithAttributeModifier }
+                    }
+                });
+                property.stringValue = Encoding.UTF8.GetString(ms.GetBuffer());
             }
         }
 
@@ -128,7 +154,7 @@ namespace TypePickerWithParameters.Editor
             if (_currentType == null) return 0f;
             var count = _currentType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                 .Count(t => _allowedTypes.ContainsKey(t.FieldType) &&
-                            t.GetCustomAttributes(typeof(OutsideInitializedAttribute)).Any());
+                            t.IsDefined(typeof(OutsideInitializedAttribute)));
             return count *
                    EditorGUIUtility.singleLineHeight;
         }

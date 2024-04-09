@@ -1,5 +1,12 @@
 using System;
-using Newtonsoft.Json;
+using System.IO;
+using System.Reflection;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
 
 namespace TypePickerWithParameters.Runtime
@@ -10,19 +17,47 @@ namespace TypePickerWithParameters.Runtime
         public TypeRef<T> TypeRef;
         [Params] public string Params;
 
-        private T instance;
-
-        public T Instance
+        public async UniTask Initialize()
         {
-            get
+            if (Instance == null)
             {
-                if (instance != null) return instance;
                 if ((Type)TypeRef == null)
-                    Debug.LogException(new Exception("A type is null. Choose the type in the inspector"));
+                    Debug.LogException(new Exception("The type is null. Choose the type in the inspector"));
+                var readTask = JsonSerializer.DeserializeAsync(new MemoryStream(Encoding.UTF8.GetBytes(Params)),
+                    (Type)TypeRef, new JsonSerializerOptions()
+                    {
+                        TypeInfoResolver = new DefaultJsonTypeInfoResolver()
+                        {
+                            Modifiers = { TypePickerJsonExtensions.AddPrivateFieldsWithAttributeModifier }
+                        }
+                    });
+                await readTask;
 
-                instance = (T)JsonConvert.DeserializeObject(Params, TypeRef);
+                Instance = (T)readTask.Result;
+            }
+        }
 
-                return instance;
+        public T Instance { get; private set; }
+    }
+
+    public static class TypePickerJsonExtensions
+    {
+        public static void AddPrivateFieldsWithAttributeModifier(JsonTypeInfo typeInfo)
+        {
+            if (typeInfo.Kind != JsonTypeInfoKind.Object)
+            {
+                return;
+            }
+
+            var fields = typeInfo.Type.GetFields(BindingFlags.Instance | BindingFlags.NonPublic);
+            foreach (var field in fields)
+            {
+                if (!field.IsDefined(typeof(OutsideInitializedAttribute))) continue;
+                var propertyInfo = typeInfo.CreateJsonPropertyInfo(field.FieldType, field.Name);
+                propertyInfo.Get = field.GetValue;
+                propertyInfo.Set = field.SetValue;
+                propertyInfo.AttributeProvider = field;
+                typeInfo.Properties.Add(propertyInfo);
             }
         }
     }

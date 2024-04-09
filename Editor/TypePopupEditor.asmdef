@@ -1,0 +1,19 @@
+{
+    "name": "TypePopupEditor",
+    "rootNamespace": "",
+    "references": [
+        "GUID:5a947c30e18e3df44837898c2e0c88b2",
+        "GUID:0f2d0a9091a87bd47a4d5607a87c40c2"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
